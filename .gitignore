@@ -1,0 +1,43 @@
+# Environment variables — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.expo/
+*.tsbuildinfo
+
+# Expo / React Native
+.expo-shared/
+ios/
+android/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Prisma generated
+homeservex-backend/node_modules/
+
+# Zip archives (large binary files)
+*.zip
+
+# Claude internal
+.claude/

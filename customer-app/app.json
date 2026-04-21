@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "EasyCare",
+    "slug": "customer-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.easycare.customer",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "EasyCare needs your location to find nearby service providers.",
+        "NSCameraUsageDescription": "EasyCare needs camera access to attach photos to your service request.",
+        "NSPhotoLibraryUsageDescription": "EasyCare needs photo library access to attach images to your service request."
+      },
+      "config": {}
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.easycare.customer",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "INTERNET"
+      ],
+      "config": {}
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "EasyCare needs your location to find nearby service providers."
+        }
+      ]
+    ]
+  }
+}

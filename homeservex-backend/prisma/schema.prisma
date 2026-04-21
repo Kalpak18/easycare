@@ -1,0 +1,450 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+/**
+ * -------------------- ENUMS --------------------
+ */
+
+enum Role {
+  USER
+  PROVIDER
+  ADMIN
+}
+
+enum ProviderSource {
+  MARKETPLACE
+  COMPANY
+}
+
+enum RequestStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  AWAITING_CONFIRMATION
+  DISPUTED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentMode {
+  UPI
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum WalletReason {
+  JOB_PAYMENT
+  COMMISSION
+  PENALTY
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_USER
+  RESOLVED_PROVIDER
+  REJECTED
+}
+
+enum ProviderDocumentType {
+  PROFILE_PHOTO
+
+  AADHAAR_FRONT
+  AADHAAR_BACK
+  PAN_CARD
+
+  BANK_PROOF
+
+  SKILL_CERTIFICATE
+  POLICE_VERIFICATION
+  DRIVING_LICENSE
+  VEHICLE_RC
+  VEHICLE_INSURANCE
+}
+
+enum OnboardingStep {
+  PHONE_VERIFIED
+  PROFILE_COMPLETED
+  KYC_PENDING
+  KYC_SUBMITTED
+  KYC_APPROVED
+  KYC_REJECTED
+}
+
+enum ProviderTier{
+  BRONZE
+  SILVER
+  GOLD
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  userId     String?
+  providerId String?
+  adminId    String?
+  revoked    Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  phone     String?  @unique
+  email     String?  @unique
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+
+/**
+ * -------------------- CORE MODELS --------------------
+ */
+
+
+model User {
+  id    String  @id @default(uuid())
+  name  String
+  phone String  @unique
+  email String? @unique
+  role  Role    @default(USER)
+
+  requests ServiceRequest[]
+
+  createdAt DateTime @default(now())
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AdminAuditLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String
+  targetId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+}
+
+model ServiceProvider {
+  id    String  @id @default(uuid())
+  name  String
+  phone String  @unique
+  email String? @unique
+
+  source ProviderSource @default(MARKETPLACE)
+
+  gender      String?
+  dateOfBirth DateTime?
+  city        String?
+  state       String?
+  pincode     String?
+  address     String?
+
+  experienceYears Int?
+  serviceRadiusKm Int? @default(5)
+
+  accountHolderName String?
+  accountNumber     String?
+  ifscCode          String?
+  upiId             String?
+
+  gstNumber String?
+
+  role       Role    @default(PROVIDER)
+  isVerified Boolean @default(false)
+  isOnline   Boolean @default(false)
+
+  onboardingStep OnboardingStep @default(PHONE_VERIFIED)
+  onboardingProgress ProviderOnboardingProgress?
+  riskProfile        ProviderRiskProfile?
+  payouts            ProviderPayout[]
+
+
+  latitude  Float?
+  longitude Float?
+
+  rating        Float @default(0)
+  tier ProviderTier @default(BRONZE)
+  totalJobs     Int   @default(0)
+  completedJobs Int   @default(0)
+  performanceScore Float @default(50)
+
+  categoryId String
+  category   ServiceCategory @relation(fields: [categoryId], references: [id])
+
+  assignedRequests ServiceRequest[] @relation("AssignedProvider")
+
+  wallet    ProviderWallet?
+  documents ProviderDocument[]
+
+  createdAt DateTime @default(now())
+}
+
+model ProviderDocument {
+  id         String @id @default(uuid())
+  providerId String
+
+  type    ProviderDocumentType
+  fileUrl String
+
+  status          DocumentStatus @default(PENDING)
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id])
+
+  @@unique([providerId, type])
+  @@index([providerId])
+  @@index([status])
+}
+
+model ServiceCategory {
+  id       String  @id @default(uuid())
+  name     String  @unique
+  isActive Boolean @default(true)
+  kycRequirements KycRequirement[]
+
+  providers       ServiceProvider[]
+  requests        ServiceRequest[]
+  commissionRules CommissionRule[]
+}
+
+/**
+ * -------------------- REQUEST FLOW --------------------
+ */
+
+model ServiceRequest {
+  id String @id @default(uuid())
+
+  userId     String
+  providerId String?
+  categoryId String
+
+  description String
+  latitude    Float
+  longitude   Float
+
+  status          RequestStatus  @default(OPEN)
+  paymentMode     PaymentMode
+  preferredSource ProviderSource?
+
+  scheduledAt     DateTime?
+  serviceMetadata Json?
+
+  totalAmount    Float
+  providerAmount Float
+  platformFee    Float
+
+  assignedAt  DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  images  ServiceRequestImage[]
+  payment Payment?
+  review  Review?
+  dispute Dispute?
+
+  createdAt DateTime @default(now())
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider ServiceProvider? @relation("AssignedProvider", fields: [providerId], references: [id], onDelete: SetNull)
+  category ServiceCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([providerId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+model ServiceRequestImage {
+  id        String @id @default(uuid())
+  requestId String
+  imageUrl  String
+
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+/**
+ * -------------------- PAYMENTS & WALLET --------------------
+ */
+
+model ProviderWallet {
+  id         String @id @default(uuid())
+  providerId String @unique
+
+  balance Float   @default(0)
+  blocked Boolean @default(false)
+
+  transactions WalletTransaction[]
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+model WalletTransaction {
+  id       String @id @default(uuid())
+  walletId String
+
+  type   WalletTransactionType
+  amount Float
+  reason WalletReason
+
+  createdAt DateTime @default(now())
+
+  wallet ProviderWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id        String @id @default(uuid())
+  requestId String @unique
+
+  mode   PaymentMode
+  status PaymentStatus @default(PENDING)
+
+  amount         Float
+  platformFee    Float
+  providerAmount Float
+
+  createdAt DateTime @default(now())
+
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/**
+ * -------------------- COMMISSION & REVIEW --------------------
+ */
+
+model CommissionRule {
+  id         String @id @default(uuid())
+  categoryId String @unique
+  percentage Float
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id        String @id @default(uuid())
+  requestId String @unique
+
+  rating  Int
+  comment String?
+
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+/**
+ * -------------------- NOTIFICATIONS --------------------
+ */
+
+model Notification {
+  id            String @id @default(uuid())
+  recipientId   String
+  recipientRole Role
+
+  message String
+  isRead  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+
+model ProviderOnboardingProgress {
+  id            String   @id @default(uuid())
+  providerId    String   @unique
+  currentStep   String
+  completedSteps String[]
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+model KycRequirement {
+  id           String @id @default(uuid())
+  categoryId   String?
+  documentType ProviderDocumentType
+  isMandatory  Boolean @default(true)
+
+  category ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+}
+
+
+model ProviderRiskProfile {
+  id         String @id @default(uuid())
+  providerId String @unique
+
+  riskScore  Int     @default(0)
+  flagged    Boolean @default(false)
+  reason     String?
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+model ProviderPayout {
+  id         String @id @default(uuid())
+  providerId String
+
+  amount     Float
+  status     String
+  processedAt DateTime?
+
+  createdAt  DateTime @default(now())
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+model Dispute {
+  id         String @id @default(uuid())
+  requestId  String @unique
+  userId     String
+  providerId String
+
+  raisedBy   Role
+  reason     String
+  evidence   String[]
+  status     DisputeStatus @default(OPEN) 
+
+  adminNote  String?
+  resolutionNote String?
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
